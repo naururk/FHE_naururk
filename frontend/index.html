@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>FHEVM Compare</title>
+</head>
+<body>
+  <h1>Введите два числа</h1>
+  <input id="a" type="number" placeholder="Число A">
+  <input id="b" type="number" placeholder="Число B">
+  <button onclick="encryptAndCompare()">Зашифровать</button>
+
+  <h2>Результат сравнения</h2>
+  <pre id="result"></pre>
+
+  <!-- ✅ ethers v5, не v6 -->
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+
+  <script>
+    const contractAddress = "0xcDda2466f44E625715f6575904765d6CCD8870dB";
+    const abi = [
+      { "inputs": [], "name": "isAEqual", "outputs": [{ "internalType": "ebool", "name": "", "type": "bytes32" }], "stateMutability": "nonpayable", "type": "function" },
+      { "inputs": [], "name": "isAGreater", "outputs": [{ "internalType": "ebool", "name": "", "type": "bytes32" }], "stateMutability": "nonpayable", "type": "function" },
+      { "inputs": [], "name": "isALess", "outputs": [{ "internalType": "ebool", "name": "", "type": "bytes32" }], "stateMutability": "nonpayable", "type": "function" },
+      {
+        "inputs": [
+          { "internalType": "externalEuint32", "name": "extA", "type": "bytes32" },
+          { "internalType": "externalEuint32", "name": "extB", "type": "bytes32" },
+          { "internalType": "bytes", "name": "proofA", "type": "bytes" },
+          { "internalType": "bytes", "name": "proofB", "type": "bytes" }
+        ],
+        "name": "setValues",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      }
+    ];
+
+    async function encryptAndCompare() {
+      try {
+        const a = document.getElementById("a").value;
+        const b = document.getElementById("b").value;
+
+        // Скрыть поля
+        document.getElementById("a").style.display = "none";
+        document.getElementById("b").style.display = "none";
+
+        const res = await fetch("http://195.7.4.103:3001/encrypt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ a, b }),
+        });
+
+        const { encA, encB } = await res.json();
+
+        // Подключение к MetaMask
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        const signer = provider.getSigner();
+        const contract = new ethers.Contract(contractAddress, abi, signer);
+
+        const tx = await contract.setValues(encA, encB, "0x", "0x");
+        await tx.wait();
+
+        const gt = await contract.isAGreater();
+        const lt = await contract.isALess();
+        const eq = await contract.isAEqual();
+
+        let result = "❓ Неизвестно";
+        if (gt === true || gt === "0x01") result = "✅ A > B";
+        else if (lt === true || lt === "0x01") result = "✅ A < B";
+        else if (eq === true || eq === "0x01") result = "✅ A = B";
+
+        document.getElementById("result").innerText = result;
+      } catch (err) {
+        console.error(err);
+        document.getElementById("result").innerText = "❌ Ошибка: " + err.message;
+      }
+    }
+  </script>
+</body>
+</html>
